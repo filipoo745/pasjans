@@ -443,8 +443,8 @@ input[type=range] { accent-color: #7c9cff; }
     <section>
       <h3>Gra</h3>
       <div class="seg" id="draw-seg">
-        <button data-draw="1">Dobieraj 1 kartę</button>
         <button data-draw="3">Dobieraj 3 karty</button>
+        <button data-draw="1">Dobieraj 1 kartę</button>
       </div>
       <label class="check"><input type="checkbox" id="opt-anim"> Animacje</label>
       <p class="muted" id="stats-line"></p>
@@ -703,8 +703,11 @@ window.SolitaireThemes = {
   const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* brak dostępu */ } };
 
   let settings = Object.assign(
-    { theme: 'classic', overrides: {}, backPattern: null, fourColor: false, draw: 1, anim: true },
+    { theme: 'classic', overrides: {}, backPattern: null, fourColor: false, draw: 3, anim: true },
     load(LS.settings, {}));
+  // wcześniej domyślnie było dobieranie 1 – przełącz raz na klasyczne 3
+  const drawMigrated = !settings.drawV2;
+  if (drawMigrated) { settings.draw = 3; settings.drawV2 = true; store(LS.settings, settings); }
   let stats = Object.assign({ played: 0, won: 0, best: null }, load(LS.stats, {}));
   const saveSettings = () => store(LS.settings, settings);
 
@@ -1183,6 +1186,14 @@ window.SolitaireThemes = {
   function onDown(e) {
     if (busy || drag || S.won) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    // klik w miejsce stosu = zawsze dobierz (nawet gdy nad nim przelatuje świeżo dobrana karta)
+    const br = board.getBoundingClientRect();
+    const px = e.clientX - br.left, py = e.clientY - br.top;
+    if (px >= L.colX[0] && px <= L.colX[0] + L.cw && py >= L.top && py <= L.top + L.ch) {
+      drawStock();
+      e.preventDefault();
+      return;
+    }
     const cardEl = e.target.closest('.card');
     if (!cardEl) {
       if (e.target.closest('.slot-stock')) drawStock();
@@ -1392,7 +1403,7 @@ window.SolitaireThemes = {
   computeLayout();
 
   const saved = load(LS.game, null);
-  if (saved && !saved.won && validSave(saved)) {
+  if (saved && !saved.won && validSave(saved) && !(drawMigrated && saved.draw !== settings.draw)) {
     S = saved;
     S.draw = S.draw === 3 ? 3 : 1;
     render({ instant: true });
